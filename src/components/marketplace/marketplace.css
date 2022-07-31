@@ -1,0 +1,32 @@
+:root
+{
+  --color-white: #ffffff;
+  --color-black: #0d0e12;
+  --color-gray-3: #465674;
+  --color-gray-6: #141922;
+  --color-yellow: #F2CB05;
+  --color-brown: #472c1a;
+}
+/* Navbar Top */
+.option-character::before
+{
+  position: absolute;
+  content: ' ';
+  background-image: url('../../utilities/resources/character-schiffy.webp');
+  background-position: center;
+  background-size: contain;
+  width: 20px;
+  height: 20px;
+  margin-left: -30px;
+}
+
+/* Radio Buttons */
+.option-nftsClass .input-nftClass:checked + .circle-inputRadio
+{
+  border-color: var(--color-yellow);
+  background-color: var(--color-yellow) !important;
+}
+
+.option-nftsClass .input-nftClass:checked + .circle-inputRadio .circle-intoInputRadio {
+  background-color: var(--color-gray-6);
+}
