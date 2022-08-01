@@ -43,10 +43,11 @@ export function isConnected()
 {
 	let expire_date = parseInt(localStorage.getItem('getschiffy_expire_date'));
 	let account_loggedin = localStorage.getItem('getschiffy_eth_connected');
+	let account_signed = localStorage.getItem('getschiffy_signed');
 
-	if(account_loggedin === 'true' && expire_date > Date.now())
-		return true;
+	if(account_loggedin === 'true' && expire_date > Date.now() && account_signed)
+		return {login:true, signed:account_signed};
 
 	localStorage.clear();
-	return false;
+	return {login:false, signed:undefined};
 }

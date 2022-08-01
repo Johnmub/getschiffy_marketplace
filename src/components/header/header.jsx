@@ -19,6 +19,7 @@ import { FiMenu } from "react-icons/fi";
 import { Jazzicon } from '@ukstv/jazzicon-react';
 
 import './header.css';
+import Loading from '../utilities/loading';
 import { minify_number, resumedAddress, isConnected, message_error } from '../../utilities/';
 import Tokens from '../../services/tokens';
 import Logo from '../../utilities/resources/getSchiffy-Logo.webp';
@@ -37,18 +38,28 @@ export default function Header()
 
   const [active_menuAccount, setActive_menuAccount] = useState(false);
   const [active_menuHeader_mobile, setActive_menuHeader_mobile] = useState(false);
+  const [loading_account, setLoading_account] = useState(false);
 
   // Store
   const accountStore = useSelector((state) => state.account);
   const dispatch = useDispatch();
 
+  // Sign Message
+  const messageSign = [
+    "I accept that I have carefully read the terms of use and policies (https://whitepaper.getschiffy.com/faqs/terms-of-use) of this application.",
+    "Sign!"
+  ].join("\n");
+
   useEffect(()=> 
   { 
     eventListeners(); 
-    initWeb3(); 
+    if(!loading_account)
+      initWeb3(); 
   });
 
-  useEffect(()=> {
+  useEffect(()=> 
+  {
+    initWeb3(true);
     return () => { resetState(); }
   }, []);
 
@@ -96,7 +107,7 @@ export default function Header()
   // --------------
   // Web3
 
-  const initWeb3 = async () =>
+  const initWeb3 = async (autologin=false) =>
   {
     const providerOptions = 
     {
@@ -126,14 +137,22 @@ export default function Header()
       }
     })
 
-    if (isConnected()) { connect(); }
+    if(!autologin)
+      return;
+      
+    let connected = isConnected();
+
+    if (connected.login && connected.signed) {
+      connect(connected.signed);
+    }
   }
 
-  const connect = async () => 
+  const connect = async (signToConnect = undefined) => 
   {
     try 
     {
       provider = await web3Modal.connect();
+      setLoading_account(true);
       _web3 = new Web3(provider);
       
       // Providers Listeners
@@ -169,10 +188,54 @@ export default function Header()
       return;
     }
 
-    _tokens = new Tokens(_web3);
     const account = (await getAccount());
-    if (account)
-      load(account);
+
+    if(!account)
+      return;
+
+    let messageSigned = (
+      signToConnect != undefined ? (await checkSign(messageSign, signToConnect))
+      :
+      (accountStore.messageSigned ? accountStore.messageSigned : (await signMessage(account)))
+    );
+
+    if(!messageSigned) {
+      disconnect(true);
+      return;
+    }
+
+    _tokens = new Tokens(_web3);
+    load(account, messageSigned);
+  }
+
+  const checkSign = async(message, signed) => 
+  {
+    let signedMessage = undefined; 
+
+    try {
+      signedMessage = await _web3.eth.personal.ecRecover(message, signed);
+    } catch {
+      message_error('An error occurred while verifying your account, please try again');
+      disconnect(true);
+      return;
+    }
+
+    return (signedMessage ? signed : undefined);
+  }
+
+  const signMessage = async(address) => 
+  {
+    let signatureMessage = undefined;
+
+    try {
+      signatureMessage = await _web3.eth.personal.sign(messageSign, address)
+    } catch(error) {
+      message_error('It is necessary to sign the agreements to be able to enter our platform.');
+      disconnect(true);
+      return;
+    }
+
+    return signatureMessage;
   }
 
   const switchNetwork = async (network) =>
@@ -196,16 +259,6 @@ export default function Header()
         default:
           message_error('An unexpected error has occurred, please try again later.');
       }
-    }
-  }
-
-  const _fetchAccounts = async () => 
-  {
-    dropState()
-    resetState()
-    const account = await getAccount()
-    if (account) {
-      load(account);
     }
   }
 
@@ -240,21 +293,28 @@ export default function Header()
     }
   }
 
-  const resetState = () => { dispatch(disconnectAccount()) }  
+  const resetState = () => 
+  { 
+    setLoading_account(false);
+    dispatch(disconnectAccount()); 
+  }  
 
   const dropState = () => { localStorage.clear(); }
 
-  const load = async (account) => 
+  const load = async (account, signed) => 
   {
     dispatch(loadAccount({
       address: account,
+      messageSigned: signed,
       busd_balance: (await _tokens.balance_busd(account)),  
       gold_balance: (await _tokens.balance_gold(account))
     }));
 
     localStorage.setItem('getschiffy_eth_connected', true);
-    localStorage.setItem('getschiffy_account', accountStore.address);
+    localStorage.setItem('getschiffy_signed', signed);
     localStorage.setItem('getschiffy_expire_date', (Date.now() + ExpireSession));
+
+    setLoading_account(false);
   }
 
   const getAccount = async () =>
@@ -265,6 +325,10 @@ export default function Header()
 
   const userOptions = () => 
   {
+    if(loading_account) {
+      return <Loading/>;
+    }
+
     if(accountStore.activeLogin)
     {
       return(
@@ -309,8 +373,6 @@ export default function Header()
       </div>);
     }
   }
-  // End web3
-  // --------------
 
   const iconMenuHeader = () =>
   {
