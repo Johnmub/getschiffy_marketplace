@@ -3,6 +3,7 @@ import Web3 from 'web3';
 import Web3Modal from "web3modal";
 import WalletConnectProvider from "@walletconnect/web3-provider";
 import { loadAccount, disconnectAccount } from "../../store/slices/account/accountSlice";
+import { disconnectGame } from '../../store/slices/game/gameSlice';
 import { useSelector, useDispatch } from 'react-redux';
 
 import { Toaster } from 'react-hot-toast';
@@ -20,7 +21,8 @@ import { Jazzicon } from '@ukstv/jazzicon-react';
 
 import './header.css';
 import Loading from '../utilities/loading';
-import { minify_number, resumedAddress, isConnected, message_error } from '../../utilities/';
+import { minify_number, resumedAddress, message_error, isConnected, getClient_ip } from '../../utilities/';
+import { connect_toServer, messageToSign } from '../../services/connectServer';
 import Tokens from '../../services/tokens';
 import Logo from '../../utilities/resources/getSchiffy-Logo.webp';
 import BusdLogo from '../../utilities/resources/token-busd-logo.webp';
@@ -45,10 +47,7 @@ export default function Header()
   const dispatch = useDispatch();
 
   // Sign Message
-  const messageSign = [
-    "I accept that I have carefully read the terms of use and policies (https://whitepaper.getschiffy.com/faqs/terms-of-use) of this application.",
-    "Sign!"
-  ].join("\n");
+  const messageSign = messageToSign;
 
   useEffect(()=> 
   { 
@@ -151,36 +150,33 @@ export default function Header()
   {
     try 
     {
+      var chainChanged_block = false;
       provider = await web3Modal.connect();
       setLoading_account(true);
       _web3 = new Web3(provider);
       
       // Providers Listeners
       provider.on("accountsChanged", (accounts) => {
-        fetchAccounts(accounts);
+        disconnect(true);
+        return;
       })
   
       provider.on("chainChanged", (networkId) => 
       {
-        let network = parseInt(networkId, 16);
-  
-        if (network === 56) 
-        {
-          disconnect();
-          connect();
-        } else {
-          disconnect();
+        if (!chainChanged_block) {
+          disconnect(true);
+          return;
         }
       })
   
       provider.on("disconnect", (error) => {
-        disconnect();
+        disconnect(true);
+        return;
       })
 
-      if(provider.networkVersion !== ChainID_bsc)
-      {
+      if(provider.networkVersion !== ChainID_bsc) {
         await switchNetwork(ChainID_bsc); 
-        return;
+        chainChanged_block = true;
       }
     } catch (error) 
     {
@@ -190,8 +186,11 @@ export default function Header()
 
     const account = (await getAccount());
 
-    if(!account)
+    if(!account) 
+    {
+      disconnect(true);
       return;
+    }
 
     let messageSigned = (
       signToConnect != undefined ? (await checkSign(messageSign, signToConnect))
@@ -204,8 +203,22 @@ export default function Header()
       return;
     }
 
+    try 
+    {
+      var connectedToserver = (await connect_toServer( account, messageSigned, (await getClient_ip()) ));
+    } catch (error) {
+      message_error('An unexpected error has occurred, please try again later.');
+      disconnect(true);
+      return;
+    }
+
+    if(!connectedToserver) {
+      disconnect(true);
+      return;
+    }
+
     _tokens = new Tokens(_web3);
-    load(account, messageSigned);
+    load(account, messageSigned, connectedToserver.registered, connectedToserver.last_login, connectedToserver.last_device);
   }
 
   const checkSign = async(message, signed) => 
@@ -259,17 +272,8 @@ export default function Header()
         default:
           message_error('An unexpected error has occurred, please try again later.');
       }
-    }
-  }
 
-  const fetchAccounts = async (accounts) => 
-  {
-    dropState()
-    resetState()
-    if (accounts.length > 0) 
-    {
-      const account = accounts[0].toLowerCase()
-      load(account);
+      return disconnect(true);
     }
   }
 
@@ -297,17 +301,21 @@ export default function Header()
   { 
     setLoading_account(false);
     dispatch(disconnectAccount()); 
+    dispatch(disconnectGame());
   }  
 
   const dropState = () => { localStorage.clear(); }
 
-  const load = async (account, signed) => 
+  const load = async (account, signed, registered, last_login, last_device) => 
   {
     dispatch(loadAccount({
       address: account,
-      messageSigned: signed,
       busd_balance: (await _tokens.balance_busd(account)),  
-      gold_balance: (await _tokens.balance_gold(account))
+      gold_balance: (await _tokens.balance_gold(account)),
+      messageSigned: signed,
+      registered,
+      last_login,
+      last_device
     }));
 
     localStorage.setItem('getschiffy_eth_connected', true);
@@ -385,7 +393,7 @@ export default function Header()
   return(
     <>
       <Toaster/>
-      <div className=' bg-black text-white'>
+      <div className=' bg-black text-white fixed top-0 left-0 w-full z-[1200]'>
         <header className='container min-w-full px-4 flex'>
           {/* Logo */}
           <div className='py-[10px] select-none'>
@@ -396,7 +404,7 @@ export default function Header()
 
           {/* Menu */}
           <div className='w-full flex justify-end md:justify-between ml-[20px]'>
-            <nav className={'z-[900] absolute left-[-250px] h-full w-[250px] border-r md:border-0 border-gray-3 md:w-auto bg-black flex flex-col justify-items-stretch md:static md:flex-row md:items-stretch transition-all ease-in-out duration-500 overflow-hidden ' + (active_menuHeader_mobile ? 'transform translate-x-[250px]':'')} id="menu_mobile">
+            <nav className={'z-[1900] fixed left-[-250px] h-full w-[250px] border-r md:border-0 border-gray-3 md:w-auto bg-black flex flex-col justify-items-stretch md:static md:flex-row md:items-stretch transition-all ease-in-out duration-500 overflow-hidden ' + (active_menuHeader_mobile ? 'transform translate-x-[250px]':'')} id="menu_mobile">
               {/* Mobile Balance */}
               <div className='border-b border-b-gray-3 select-none'>
                 {/* Gold Balance */}
@@ -422,7 +430,7 @@ export default function Header()
             </nav>
 
             {/* Account */}
-            <div className='flex justify-center items-center select-none z-[800]'>
+            <div className='flex justify-center items-center select-none z-[1800]'>
               {userOptions()}
             </div>
           </div>

@@ -2,6 +2,18 @@
 @tailwind components;
 @tailwind utilities;
 
+*::-webkit-scrollbar {
+  width: 9px; 
+  background-color: var(--color-black);
+  border-radius: 12px;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--color-gray-3);
+  height: 20px;
+  border-radius: 12px;
+}
+
 body 
 {
   font-family: 'Share Tech', sans-serif;

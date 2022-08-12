@@ -1,5 +1,16 @@
 import millify from "millify";
 import toast from 'react-hot-toast';
+import axios from "axios";
+
+const ERASE_WORDS = [
+  'Silver',
+  'Gold',
+  'Series',
+  'series',
+  'Rare',
+  'Normals',
+  'Normal'
+];
 
 export function minify_number(number, precision) 
 {
@@ -7,6 +18,21 @@ export function minify_number(number, precision)
 		return millify(number, {precision: precision});
 	else 
 		return '0.00';
+}
+
+export function removeWords(text)
+{
+	let textOut = text;
+
+	ERASE_WORDS.forEach(word => 
+	{
+		let initWord = textOut.indexOf(word);
+		if(initWord !== -1) {
+			textOut = textOut.replace(word, '');
+		}
+	});
+
+	return textOut;
 }
 
 export function dMinify_number(number) 
@@ -37,6 +63,12 @@ export function message_error(text) {
 
 export function message_loading(text) {
 	toast.loading(text, { duration: 5000 })
+}
+
+export async function getClient_ip() 
+{
+	const response = await axios.get('https://api.ipify.org?format=json');
+	return response.data.ip;
 }
 
 export function isConnected() 

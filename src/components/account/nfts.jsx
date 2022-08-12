@@ -1,27 +1,159 @@
-import React from "react";
+import React, {useEffect, useState} from "react";
+import Web3 from 'web3';
 import { Navigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 
-import { isConnected } from '../../utilities/';
+import ArticleNft from '../marketplace/article_nft';
+import Loading from '../utilities/loading';
+import Tokens, {
+  contractGold_addressAbi, 
+  contractNormal_addressAbi, 
+  contractSilver_addressAbi
+} from '../../services/tokens';
+import { removeWords } from '../../utilities/';
 
 export default function Nfts()
 {
+  const [nftsNormal, setNftsNormal] = useState(undefined);
+  const [nftsSilver, setNftsSilver] = useState(undefined);
+  const [nftsGold, setNftsGold] = useState(undefined);
+
+  const [loadPage, setLoadPage] = useState(false);
   const accountStore = useSelector((state) => state.account);
 
-  if(!isConnected() || !accountStore.activeLogin) {
-    return <Navigate to={'/'} replace={true}/>
+  useEffect(()=> {
+    if(!accountStore.activeLogin) {
+      return <Navigate to={'/'} replace={true}/>
+    }
+
+    if(!loadPage && nftsNormal !== undefined) {
+      setLoadPage(true);
+    }
+  });
+
+  useEffect(()=> {
+    getNfts_balance();
+  },[]);
+
+  const getNfts_balance = async () => 
+  {
+    var _web3 = new Web3(window.ethereum);
+    var _tokens = new Tokens(_web3);
+
+    const normalCount = await _tokens.balance_normalNfts(accountStore.address);
+    const SilverCount = await _tokens.balance_silverNfts(accountStore.address);
+    const GoldCount = await _tokens.balance_goldNfts(accountStore.address);
+
+    setNftsNormal(await getNfts_data(normalCount, 'normal'));
+    setNftsSilver(await getNfts_data(SilverCount, 'silver'));
+    setNftsGold(await getNfts_data(GoldCount, 'gold'));
+  }
+
+  const getNfts_data = async (count = [], classNft = '') => 
+  {
+    if(count.length < 1) {
+      return [];
+    }
+
+    var nftsData = undefined;
+    var nftsArray = count;
+    var itemsRender = [];
+
+    if(classNft === 'gold') {nftsData = contractGold_addressAbi();} 
+    else if (classNft === 'silver') {nftsData = contractSilver_addressAbi();} 
+    else {nftsData = contractNormal_addressAbi();}
+
+    for (let index = 0; index < nftsArray.length; index++) 
+    {
+      try 
+      {
+        let ipfAddress = (nftsData.IPFS+'/'+nftsArray[index]+'.json');
+        const tokenMetadata = await fetch(ipfAddress).then((response) => response.json());
+
+        itemsRender.push({
+          tokenIndex: nftsArray[index],
+          tokenDescription: removeWords(tokenMetadata.description),
+          tokenAttributes: tokenMetadata.attributes,
+          tokenUrl: tokenMetadata.image
+        });
+      } catch (error) {
+        break;
+      }
+    }
+
+    return itemsRender;
+  }
+
+  const nftsRender =  (classNft) => 
+  {
+    if(!loadPage) {
+      return (<Loading/>);
+    }
+
+    const showNfts = classNft;
+    var _nftsData = [];
+
+    if(showNfts === 'gold') {_nftsData = nftsGold;} 
+    else if (showNfts === 'silver') {_nftsData = nftsSilver;} 
+    else {_nftsData = nftsNormal;}
+
+    if(_nftsData.length < 1) {
+      return(<span className="font-bold text-lg sm:text-xl uppercase text-gray-3">Empty</span>);
+    }
+
+    return(_nftsData.map((nft) => 
+    {
+      return (
+        <ArticleNft article={nft} showSale={true} key={nft.tokenIndex}/>
+      );
+    }));
   }
 
   return(
-    <div className="w-full h-full flex flex-col items-center justify-center">
-      {/* Title */}
-      <div className="w-full sm:max-w-[400px] md:w-1/2">
-        <h4 className="text-3xl text-white text-center font-bold">Join our white list and take advantage of our offers</h4>
+    <div className="w-full h-full">
+      {/* Description */}
+      <div className=" text-white text-base text-bold pt-[12px]">
+        <p>Nfts available in your wallet</p>
+        <p>Amount of gold collected</p>
       </div>
 
-      {/* Text */}
-      <div className="mt-[20px] w-full sm:w-4/5 md:w-auto">
-        <p className="text-white text-center">We will use your name and wallet address to identify you. By joining you are accepting our <a className="text-red underline" href="https://whitepaper.getschiffy.com/faqs/terms-of-use" target={"_blank"} rel="noreferrer">terms of use.</a></p>
+      {/* Normal Nfts */}
+      <div className="w-full mt-[40px] max-w-[1100px] select-none">
+        <div className="bg-gray-1 rounded-tl-sm rounded-tr-sm px-[14px] py-[10px] inline-block font-bold text-white text-lg sm:text-xl">
+          <span>Normal | </span>
+          <span className="text-yellow uppercase text-base">0.00 GOLD</span>
+        </div>
+
+        {/* Items */}
+        <div className="border border-gray-1 rounded-sm rounded-tl-0 w-full min-h-[190px] flex flex-wrap justify-center items-center select-none">
+          {nftsRender('normal')}
+        </div>
+      </div>
+
+      {/* Silver Nfts */}
+      <div className="w-full mt-[40px] max-w-[1100px] select-none">
+        <div className="bg-gray-1 rounded-tl-sm rounded-tr-sm px-[14px] py-[10px] inline-block font-bold text-white text-lg sm:text-xl">
+          <span>Silver | </span>
+          <span className="text-yellow uppercase text-base">0.00 GOLD</span>
+        </div>
+
+        {/* Items */}
+        <div className="border border-gray-1 rounded-sm rounded-tl-0 w-full min-h-[190px] flex  flex-wrap justify-center items-center select-none">
+          {nftsRender('silver')}
+        </div>
+      </div>
+
+      {/* Gold Nfts */}
+      <div className="w-full mt-[40px] max-w-[1100px] select-none">
+        <div className="bg-gray-1 rounded-tl-sm rounded-tr-sm px-[14px] py-[10px] inline-block font-bold text-white text-lg sm:text-xl">
+          <span>Gold | </span>
+          <span className="text-yellow uppercase text-base">0.00 GOLD</span>
+        </div>
+
+        {/* Items */}
+        <div className="border border-gray-1 rounded-sm rounded-tl-0 w-full min-h-[190px] flex flex-wrap justify-center items-center select-none">
+          {nftsRender('gold')}
+        </div>
       </div>
     </div>
   );

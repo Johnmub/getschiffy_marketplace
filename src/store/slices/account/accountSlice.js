@@ -1,11 +1,16 @@
 import { createSlice } from '@reduxjs/toolkit';
 
-const initialState = {
+const initialState = 
+{
   activeLogin: false,
   address: undefined,
-  messageSigned: undefined,
   busdBalance: undefined,
-  goldBalance: undefined
+  goldBalance: undefined,
+
+  messageSigned: undefined,
+  registered: undefined,
+  lastLogin: undefined,
+  lastDevice: undefined
 };
 
 export const accountSlice = createSlice({
@@ -15,19 +20,20 @@ export const accountSlice = createSlice({
   {
     loadAccount: (state, action) => 
     {
-      state.activeLogin = true;
-      state.address = action.payload.address;
-      state.messageSigned = action.payload.messageSigned;
-      state.busdBalance = action.payload.busd_balance;
-      state.goldBalance = action.payload.gold_balance;
+      state = Object.assign(state, {
+        activeLogin : true,
+        address : action.payload.address,
+        busdBalance : action.payload.busd_balance,
+        goldBalance : action.payload.gold_balance,
+        
+        messageSigned : action.payload.messageSigned,
+        registered: action.payload.registered,
+        lastLogin: action.payload.last_login,
+        lastDevice: action.payload.last_device
+      });
     },
-    disconnectAccount: (state) => 
-    {
-      state.activeLogin = false;
-      state.address = undefined;
-      state.messageSigned = undefined;
-      state.busdBalance = undefined;
-      state.goldBalance = undefined;
+    disconnectAccount: (state) => {
+      state = Object.assign(state, initialState);
     },
   },
 });
